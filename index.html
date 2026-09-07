@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bloch Genesis-4 Developer Portal</title>
+<meta name="description" content="Deep-technical integration reference for the Bloch Genesis-4 chain: JSON-RPC surface, transaction mechanics, crediting rules, node operation. Every figure sourced.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/styles.css">
+<script>
+/* apply persisted theme before first paint */
+try {
+  var t = localStorage.getItem("bloch-theme");
+  if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+} catch (e) {}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <button id="nav-toggle" class="icon-btn" aria-label="Toggle navigation">Menu</button>
+  <a class="brand" href="#top">
+    <span class="mark">[B]</span> Bloch <span class="sub">Genesis-4 · developer portal</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links" aria-label="External links">
+    <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">Source</a>
+    <a href="https://blochl1.com" rel="noopener">Explorer</a>
+    <a href="https://posternlabs.com" rel="noopener">Postern Labs</a>
+  </nav>
+  <button id="theme-toggle" class="icon-btn" type="button">Theme</button>
+</header>
+
+<div class="nav-overlay" aria-hidden="true"></div>
+
+<div class="layout">
+<nav class="sidenav" aria-label="Section navigation">
+  <h5>Getting started</h5>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#network">Network parameters</a></li>
+    <li><a href="#integer-rule">The integer rule</a></li>
+    <li><a href="#endpoints">Endpoints &amp; transport</a></li>
+  </ul>
+  <h5>JSON-RPC reference</h5>
+  <ul>
+    <li><a href="#rpc">Conventions</a></li>
+    <li><a class="method-link" href="#getchaininfo">getchaininfo</a></li>
+    <li><a class="method-link" href="#getblockcount">getblockcount</a></li>
+    <li><a class="method-link" href="#getblockbyslot">getblockbyslot / byid</a></li>
+    <li><a class="method-link" href="#getvalidator">getvalidator</a></li>
+    <li><a class="method-link" href="#getvalidatorcount">getvalidatorcount</a></li>
+    <li><a class="method-link" href="#getbalance">getbalance</a></li>
+    <li><a class="method-link" href="#getutxos">getutxos / listunspent</a></li>
+    <li><a class="method-link" href="#gettxout">gettxout</a></li>
+    <li><a class="method-link" href="#getmempoolinfo">getmempoolinfo</a></li>
+    <li><a class="method-link" href="#sendrawtransaction">sendrawtransaction</a></li>
+    <li><a href="#refused">Refused methods</a></li>
+    <li><a href="#next-release">Next release</a></li>
+    <li><a href="#errors">Error codes</a></li>
+  </ul>
+  <h5>Integrating</h5>
+  <ul>
+    <li><a href="#transactions">Transactions &amp; fees</a></li>
+    <li><a href="#addresses">Addresses &amp; keys</a></li>
+    <li><a href="#crediting">Crediting deposits</a></li>
+  </ul>
+  <h5>Operating</h5>
+  <ul>
+    <li><a href="#run-a-node">Run a node</a></li>
+    <li><a href="#sdks">SDKs &amp; tooling</a></li>
+  </ul>
+  <h5>Project status</h5>
+  <ul>
+    <li><a href="#evm">EVM status</a></li>
+    <li><a href="#security">Security &amp; disclosure</a></li>
+  </ul>
+</nav>
+
+<main id="top">
+
+<!-- ============================ OVERVIEW ============================ -->
+<section id="overview">
+  <h1>Bloch Genesis-4 developer portal</h1>
+  <p class="lead">The integration reference for the Bloch Genesis-4 chain: a post-quantum proof-of-stake L1 with an extended-UTXO ledger and explicit Casper-FFG finality. Written for engineers — exchange integrators, wallet builders, node operators.</p>
+  <p>This portal documents the network at the deepest honest level. Where something does not exist yet — a transaction index, an EVM, official SDKs, a joinable sync path for brand-new nodes — this page says so plainly instead of papering over it. Every figure here was verified against source commit <code>72e5525</code> and the live network on 2026-09-07; where a feature is in source but not yet on the fleet, it is labeled <span class="badge next">next release</span>.</p>
+  <div class="callout">
+    <span class="title">Orientation in 30 seconds</span>
+    <ul>
+      <li>Read <a href="#network">network parameters</a> and the <a href="#integer-rule">integer rule</a> first — the latter breaks naive JSON parsers.</li>
+      <li>Everything is JSON-RPC 2.0 over HTTP POST: <a href="#endpoints">endpoints</a>, <a href="#rpc">method reference</a>.</li>
+      <li>Crediting payments? The <a href="#crediting">deposit rule</a> is normative — this chain has <em>no transaction index</em>, tracking works differently than on Bitcoin or Ethereum.</li>
+      <li>Running infrastructure? Start at <a href="#run-a-node">Run a node</a> — including the one current limitation you must know about before provisioning.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================ NETWORK ============================ -->
+<section id="network">
+  <h2 id="network-h">Network parameters</h2>
+  <div class="table-wrap"><table>
+    <tbody>
+      <tr><td>Chain</td><td>Bloch Genesis-4 — post-quantum proof-of-stake L1, extended-UTXO (eUTXO) ledger, explicit Casper-FFG finality gadget over an LMD-GHOST fork choice</td></tr>
+      <tr><td>Predecessor</td><td>Genesis-3 (proof-of-work), closed at height 39,918; its ledger carried over into Genesis-4's opening state</td></tr>
+      <tr><td>Ticker</td><td><code>BLCH</code> (native asset — there is <strong>no token contract</strong>)</td></tr>
+      <tr><td>Total supply</td><td>100,000,000,000 BLCH — fixed hard cap, enforced per block</td></tr>
+      <tr><td>Denomination</td><td>8 decimals; 1 BLCH = 100,000,000 sat; total supply = 10<sup>19</sup> sat</td></tr>
+      <tr><td>Genesis time</td><td>2026-08-13 21:31:19.962 UTC</td></tr>
+      <tr><td>Slot time</td><td>30 s</td></tr>
+      <tr><td>Epoch</td><td>32 slots (16 min)</td></tr>
+      <tr><td>Genesis validators</td><td>64</td></tr>
+      <tr><td>Signatures</td><td>Hybrid <strong>ML-DSA-65 ‖ Falcon-1024</strong> — both components must verify; a signature blob measures ≈ 4,589 bytes</td></tr>
+      <tr><td>Hashing</td><td>SHA3-256 / SHAKE-256, domain-separated throughout</td></tr>
+      <tr><td>Custody model</td><td>Non-custodial by construction — the node never holds a spending key; all signing is client-side</td></tr>
+      <tr><td>Testnet</td><td><strong>None exists.</strong> Integrate against mainnet with small amounts, or against your own observer node</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================ INTEGER RULE ============================ -->
+<section id="integer-rule">
+  <h2 id="integer-rule-h">The integer rule: every <code>*_sat</code> field is a string</h2>
+  <div class="callout danger">
+    <span class="title">Read this before writing any parsing code</span>
+    <p>Every satoshi-denominated RPC field (<code>balance_sat</code>, <code>value_sat</code>, <code>total_active_stake_sat</code>, …) is a <strong>decimal string, never a JSON number</strong>. The total supply is 10<sup>19</sup> sat, which exceeds the 2<sup>53</sup> exact-integer range of a JavaScript double (and of any IEEE-754 double). A parser that runs these values through <code>JSON.parse</code> as numbers will silently corrupt balances.</p>
+    <p>Parse every <code>*_sat</code> field as a big integer — <code>BigInt</code> in JS, <code>int</code> in Python, <code>big.Int</code> / <code>uint64</code>-with-care in Go. Plain counts, heights, and slots are ordinary numbers.</p>
+  </div>
+<pre><code>// JS: correct handling of *_sat fields
+const res = await fetch("https://posternlabs.com/g4rpc", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getbalance",
+                         params: ["7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000"] })
+});
+const { result } = await res.json();
+const balance = BigInt(result.balance_sat);   // string -> BigInt. Never Number().
+const utxoCount = result.utxo_count;          // plain count -> ordinary number is fine</code></pre>
+</section>
+
+<!-- ============================ ENDPOINTS ============================ -->
+<section id="endpoints">
+  <h2 id="endpoints-h">Endpoints &amp; transport</h2>
+
+  <h3 id="endpoint-proxy">Public proxy (recommended)</h3>
+  <p class="sig">POST https://posternlabs.com/g4rpc</p>
+  <p>JSON-RPC 2.0 over HTTP POST. The proxy exposes a read-method allowlist plus <code>sendrawtransaction</code>. It is backed by multiple upstream nodes with <strong>read corroboration</strong>: branch-sensitive reads require a quorum of ≥ 2 upstream nodes agreeing before a response is served. CORS is answered at the proxy, so browser apps can call it directly.</p>
+  <p>Per-method cache TTLs at the proxy:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Method</th><th>Cache TTL</th></tr></thead>
+    <tbody>
+      <tr><td><code>getchaininfo</code></td><td>3 s</td></tr>
+      <tr><td><code>getblockcount</code></td><td>3 s</td></tr>
+      <tr><td><code>getvalidatorcount</code></td><td>5 s</td></tr>
+      <tr><td><code>getblockbyslot</code></td><td>10 s</td></tr>
+      <tr><td><code>getblockbyid</code></td><td>300 s</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 id="endpoint-direct">Direct archival nodes</h3>
+  <p class="sig">POST http://139.180.166.5:8080 &nbsp;·&nbsp; POST http://139.180.173.231:8080</p>
+  <p>Two keyless observer nodes, plain HTTP, POST only. <strong>No TLS</strong> — treat the transport as untrusted and corroborate any answer across both nodes (this is exactly what the public proxy automates for you). Useful when you want raw node behavior without the proxy's cache or allowlist.</p>
+
+  <h3 id="endpoint-tools">Explorer &amp; wallet</h3>
+  <ul>
+    <li>Explorer: <a href="https://blochl1.com" rel="noopener">blochl1.com</a> — blocks, validators, epochs, analytics, transactions.</li>
+    <li>Wallet: <a href="https://posternlabs.com/apps/wallet/" rel="noopener">posternlabs.com/apps/wallet/</a> — a PWA with client-side signing; usable as a reference integration for the signing flow documented on this page.</li>
+  </ul>
+
+  <h3 id="endpoint-transport">Transport rules</h3>
+  <ul>
+    <li><strong>One call per connection.</strong> The node answers with <code>Connection: close</code>; there is no keep-alive at the node. Pool at your HTTP client's peril — open a fresh connection per request.</li>
+    <li>Request body cap: <strong>1 MiB</strong>.</li>
+    <li>Both positional-array and named-object <code>params</code> are accepted.</li>
+    <li>Batch arrays are refused with <code>-32600</code> — one JSON-RPC call per request.</li>
+  </ul>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"getchaininfo","params":[]}'</code></pre>
+</section>
+
+<!-- ============================ RPC REFERENCE ============================ -->
+<section id="rpc">
+  <h2 id="rpc-h">JSON-RPC reference — live surface</h2>
+  <p>The methods below are the surface the public proxy and the live fleet serve <strong>today</strong>. Methods that exist in source but are not yet on the fleet are listed under <a href="#next-release">Next release</a>. All sample responses use <em>illustrative values</em> (heights, hashes, and balances are made up); shapes and field names are the contract.</p>
+  <div class="callout">
+    <span class="title">Conventions</span>
+    <ul>
+      <li>JSON-RPC 2.0; <code>params</code> positional (<code>[…]</code>) or named (<code>{…}</code>).</li>
+      <li>All <code>*_sat</code> fields are decimal strings — see <a href="#integer-rule">the integer rule</a>.</li>
+      <li>Hashes and roots are 64-char lowercase hex (32 bytes).</li>
+      <li>One call per connection; no batches; 1 MiB body cap.</li>
+    </ul>
+  </div>
+
+  <!-- getchaininfo -->
+  <div class="method" id="getchaininfo">
+    <h3>getchaininfo <span class="badge live">live</span></h3>
+    <p class="sig">getchaininfo [] &rarr; object</p>
+    <p>One-call snapshot of the node's view: head, finality checkpoints, validator counts, fee state, and transport health. Proxy cache TTL: 3 s.</p>
+    <h4>Parameters</h4>
+    <p>None — pass <code>[]</code>.</p>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>block_id</code></td><td>hex-64</td><td>Head block id</td></tr>
+        <tr><td><code>slot</code>, <code>height</code></td><td>number</td><td>Head slot / chain height</td></tr>
+        <tr><td><code>finalized_height</code></td><td>number</td><td>Height of the finalized checkpoint</td></tr>
+        <tr><td><code>epoch</code>, <code>slot_in_epoch</code>, <code>slots_per_epoch</code></td><td>number</td><td><code>slots_per_epoch</code> is 32</td></tr>
+        <tr><td><code>state_root</code></td><td>hex-64</td><td>State root at head</td></tr>
+        <tr><td><code>justified</code>, <code>finalized</code>, <code>previous_justified</code></td><td>object</td><td>Each <code>{epoch, root}</code> — the FFG checkpoints</td></tr>
+        <tr><td><code>validators</code></td><td>object</td><td><code>{total, active}</code></td></tr>
+        <tr><td><code>total_active_stake_sat</code></td><td><strong>string</strong></td><td>Big integer — parse as BigInt</td></tr>
+        <tr><td><code>base_fee_millisat_per_gas</code>, <code>next_base_fee_millisat_per_gas</code></td><td><strong>string</strong></td><td>Current and one-block-look-ahead base fee</td></tr>
+        <tr><td><code>mempool</code>, <code>blocks_known</code></td><td>number</td><td>Mempool size; total blocks this node knows</td></tr>
+        <tr><td><code>wall_slot</code>, <code>behind_by_slots</code></td><td>number</td><td>Wall-clock slot and how far the node lags it</td></tr>
+        <tr><td><code>transport</code></td><td>object</td><td><code>{name, peers}</code></td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout warn">
+      <span class="title">Detecting "alone on my own fork"</span>
+      <p>Poll <code>transport.peers</code> <em>as well as</em> <code>behind_by_slots</code>. A node that is partitioned can keep a fresh-looking head (low <code>behind_by_slots</code>) while extending a private fork; <code>peers</code> dropping to 0 is the signal <code>behind_by_slots</code> will not give you.</p>
+    </div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getchaininfo","params":[]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "block_id": "7c1e29aa40b3d8f15e6a0c92d4b7f81326c5a90e8f1d3b6407e2c9a51b8d4f60",
+    "slot": 71182,
+    "height": 34120,
+    "finalized_height": 34064,
+    "epoch": 2224,
+    "slot_in_epoch": 14,
+    "slots_per_epoch": 32,
+    "state_root": "e0a4c1d293b85f671c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7",
+    "justified": { "epoch": 2223, "root": "44f0b2c9d81e6a35970c4d2f8b1e5a603d7c92f406b8e1a5c2d94f705e8a1b36" },
+    "finalized": { "epoch": 2222, "root": "b2d94f705e8a1b3644f0b2c9d81e6a35970c4d2f8b1e5a603d7c92f406b8e1a5" },
+    "previous_justified": { "epoch": 2222, "root": "b2d94f705e8a1b3644f0b2c9d81e6a35970c4d2f8b1e5a603d7c92f406b8e1a5" },
+    "validators": { "total": 64, "active": 64 },
+    "total_active_stake_sat": "3200000000000000000",
+    "base_fee_millisat_per_gas": "1000",
+    "next_base_fee_millisat_per_gas": "1024",
+    "mempool": 3,
+    "blocks_known": 34121,
+    "wall_slot": 71182,
+    "behind_by_slots": 0,
+    "transport": { "name": "devnet", "peers": 8 }
+  }
+}</code></pre>
+  </div>
+
+  <!-- getblockcount -->
+  <div class="method" id="getblockcount">
+    <h3>getblockcount <span class="badge live">live</span></h3>
+    <p class="sig">getblockcount [] &rarr; object</p>
+    <p>Lightweight height/finality probe — the cheap poll for crediting pipelines. Proxy cache TTL: 3 s.</p>
+    <h4>Parameters</h4>
+    <p>None — pass <code>[]</code>.</p>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>height</code>, <code>slot</code>, <code>epoch</code></td><td>number</td><td>Head position</td></tr>
+        <tr><td><code>finalized_height</code></td><td>number | null</td><td><code>null</code> before the first finalized checkpoint is known</td></tr>
+        <tr><td><code>justified_epoch</code>, <code>finalized_epoch</code></td><td>number</td><td>FFG checkpoint epochs</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getblockcount","params":[]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "height": 34120,
+    "slot": 71182,
+    "epoch": 2224,
+    "finalized_height": 34064,
+    "justified_epoch": 2223,
+    "finalized_epoch": 2222
+  }
+}</code></pre>
+  </div>
+
+  <!-- getblockbyslot / getblockbyid -->
+  <div class="method" id="getblockbyslot">
+    <h3><span id="getblockbyid"></span>getblockbyslot / getblockbyid <span class="badge live">live</span></h3>
+    <p class="sig">getblockbyslot [slot] &rarr; block &nbsp;·&nbsp; getblockbyid [block_id hex-64] &rarr; block</p>
+    <p>Fetch one canonical block, by slot or by id. Both return the same block object. Under proof of stake, empty slots are normal: <code>getblockbyslot</code> answers <code>-32007 SLOT_EMPTY</code> when no canonical block occupies the slot — advance to the next slot, it is not an error condition. Proxy cache TTLs: 10 s by slot, 300 s by id.</p>
+    <h4>Parameters</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Position</th><th>Name</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>slot</code> / <code>block_id</code></td><td>number / hex-64</td><td>Slot number, or 64-hex block id</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Response fields (block object)</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>block_id</code></td><td>hex-64</td><td>Consensus block id — clients recompute it over the header</td></tr>
+        <tr><td><code>version</code></td><td>number</td><td>Always <code>2970353669</code> — the raw <code>0xB10C0005</code> network magic, exposed verbatim by design; do not expect a small integer</td></tr>
+        <tr><td><code>parent</code></td><td>hex-64</td><td>Parent block id</td></tr>
+        <tr><td><code>slot</code>, <code>epoch</code>, <code>height</code>, <code>proposer_index</code></td><td>number</td><td></td></tr>
+        <tr><td><code>timestamp</code></td><td>number</td><td>Block time, unix <strong>seconds</strong> (genesis + slot × 30 s)</td></tr>
+        <tr><td><code>state_root</code>, <code>body_root</code></td><td>hex-64</td><td></td></tr>
+        <tr><td><code>randao_reveal</code>, <code>randao_mix</code></td><td>hex</td><td>Reveal is a full hybrid signature (≈ 4,589 B); mix is 32 bytes</td></tr>
+        <tr><td><code>justified_root</code>, <code>finalized_root</code></td><td>hex-64</td><td>FFG votes carried by this block</td></tr>
+        <tr><td><code>attestation_root</code>, <code>coherence_root</code></td><td>hex-64</td><td></td></tr>
+        <tr><td><code>finality</code></td><td>string</td><td><code>"finalized"</code> | <code>"justified"</code> | … — this block's finality standing</td></tr>
+        <tr><td><code>finalized</code></td><td>boolean</td><td>Convenience flag</td></tr>
+        <tr><td><code>tx_count</code>, <code>attestation_count</code></td><td>number</td><td>Counts only — the block object does not inline transactions</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getblockbyslot","params":[71180]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "block_id": "7c1e29aa40b3d8f15e6a0c92d4b7f81326c5a90e8f1d3b6407e2c9a51b8d4f60",
+    "version": 2970353669,
+    "parent": "9d3b6407e2c9a51b8d4f607c1e29aa40b3d8f15e6a0c92d4b7f81326c5a90e8f",
+    "slot": 71180,
+    "epoch": 2224,
+    "height": 34118,
+    "proposer_index": 41,
+    "timestamp": 1788792079,
+    "state_root": "e0a4c1d293b85f671c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7",
+    "body_root": "970c4d2f8b1e5a603d7c92f406b8e1a5c2d94f705e8a1b3644f0b2c9d81e6a35",
+    "randao_reveal": "a3b1…(hybrid signature, ~4589 bytes hex, truncated here)",
+    "randao_mix": "a5c3e71b94d6f28c07e1a538b2f4d96e05a7c31d48f6b20f31a7c059e64b2d80",
+    "justified_root": "44f0b2c9d81e6a35970c4d2f8b1e5a603d7c92f406b8e1a5c2d94f705e8a1b36",
+    "finalized_root": "b2d94f705e8a1b3644f0b2c9d81e6a35970c4d2f8b1e5a603d7c92f406b8e1a5",
+    "attestation_root": "0c92d4b7f81326c5a90e8f1d3b6407e2c9a51b8d4f607c1e29aa40b3d8f15e6a",
+    "coherence_root": "1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7e0a4c1d293b85f67",
+    "finality": "justified",
+    "finalized": false,
+    "tx_count": 1,
+    "attestation_count": 42
+  }
+}</code></pre>
+    <h4>Empty slot</h4>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": { "code": -32007, "message": "no canonical block at slot" }
+}</code></pre>
+  </div>
+
+  <!-- getvalidator -->
+  <div class="method" id="getvalidator">
+    <h3>getvalidator <span class="badge live">live</span></h3>
+    <p class="sig">getvalidator [index u32] &rarr; object</p>
+    <p>One validator's registry entry by index.</p>
+    <h4>Parameters</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Position</th><th>Name</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>index</code></td><td>u32</td><td>Validator index; unknown index &rarr; <code>-32001</code></td></tr>
+      </tbody>
+    </table></div>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>index</code></td><td>number</td><td></td></tr>
+        <tr><td><code>pubkey_hash</code></td><td>hex-64</td><td>SHA3-256 of the raw public key</td></tr>
+        <tr><td><code>pubkey_bytes</code></td><td>number</td><td>Length of the raw hybrid public key in bytes</td></tr>
+        <tr><td><code>state</code></td><td>string</td><td>e.g. <code>"active"</code></td></tr>
+        <tr><td><code>own_stake_sat</code></td><td><strong>string</strong></td><td></td></tr>
+        <tr><td><code>effective_stake_sat</code></td><td><strong>string</strong> | null</td><td></td></tr>
+        <tr><td><code>commission_bps</code></td><td><strong>string</strong></td><td>Basis points, as a string on this method</td></tr>
+        <tr><td><code>randao_commitment</code></td><td>hex-64</td><td></td></tr>
+        <tr><td><code>slashed</code></td><td>boolean</td><td></td></tr>
+        <tr><td><code>activation_epoch</code>, <code>exit_epoch</code>, <code>withdrawable_epoch</code></td><td>number | null</td><td></td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getvalidator","params":[41]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "index": 41,
+    "pubkey_hash": "5a0e8d21c47bf93602de5a81b64c9f307e12ad85f09c36b4d871e25a40c3b96f",
+    "pubkey_bytes": 3749,
+    "state": "active",
+    "own_stake_sat": "50000000000000000",
+    "effective_stake_sat": "50000000000000000",
+    "commission_bps": "500",
+    "randao_commitment": "d871e25a40c3b96f5a0e8d21c47bf93602de5a81b64c9f307e12ad85f09c36b4",
+    "slashed": false,
+    "activation_epoch": 0,
+    "exit_epoch": null,
+    "withdrawable_epoch": null
+  }
+}</code></pre>
+  </div>
+
+  <!-- getvalidatorcount -->
+  <div class="method" id="getvalidatorcount">
+    <h3>getvalidatorcount <span class="badge live">live</span></h3>
+    <p class="sig">getvalidatorcount [] &rarr; object</p>
+    <p>Aggregate validator statistics. Proxy cache TTL: 5 s.</p>
+    <h4>Parameters</h4>
+    <p>None — pass <code>[]</code>.</p>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>total</code>, <code>active</code></td><td>number</td><td></td></tr>
+        <tr><td><code>total_active_stake_sat</code></td><td><strong>string</strong></td><td></td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getvalidatorcount","params":[]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": { "total": 64, "active": 64, "total_active_stake_sat": "3200000000000000000" }
+}</code></pre>
+  </div>
+
+  <!-- getbalance -->
+  <div class="method" id="getbalance">
+    <h3>getbalance <span class="badge live">live</span></h3>
+    <p class="sig">getbalance [script_hash hex-64] &rarr; object</p>
+    <p>Balance and UTXO count for one script hash. This is the cheap poll for deposit detection. See <a href="#addresses">Addresses &amp; keys</a> for how to derive a <code>script_hash</code> from an address.</p>
+    <h4>Parameters</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Position</th><th>Name</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>script_hash</code></td><td>hex-64</td><td>32-byte script hash (Carried or Native form)</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>script_hash</code></td><td>hex-64</td><td>Echoed</td></tr>
+        <tr><td><code>balance_sat</code></td><td><strong>string</strong></td><td>Parse as BigInt</td></tr>
+        <tr><td><code>utxo_count</code></td><td>number (u64)</td><td>Reference total for UTXO enumeration — see <a href="#getutxos">getutxos</a></td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getbalance","params":["7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000"]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "script_hash": "7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000",
+    "balance_sat": "125000000000",
+    "utxo_count": 3
+  }
+}</code></pre>
+  </div>
+
+  <!-- getutxos -->
+  <div class="method" id="getutxos">
+    <h3><span id="listunspent"></span>getutxos / listunspent <span class="badge live">live</span></h3>
+    <p class="sig">getutxos [script_hash hex-64, limit?] &rarr; object &nbsp;·&nbsp; listunspent is an alias</p>
+    <p>Unspent outputs for a script hash. <code>limit</code> defaults to 100 and is clamped to 1..=1000.</p>
+    <div class="callout warn">
+      <span class="title">There is no pagination cursor</span>
+      <p><code>limit</code> is a <em>count</em>, not a page: repeated calls return the same first page. You cannot enumerate past the first 1,000 outputs with this method. The working pattern:</p>
+      <ul>
+        <li>Use <code>getbalance.utxo_count</code> as the reference total; if it exceeds <code>returned</code>, you are not seeing everything.</li>
+        <li>Keep hot addresses under 1,000 outputs (consolidate).</li>
+        <li><a href="#gettxout"><code>gettxout(txid, vout)</code></a> is the only exact single-output check past the first page.</li>
+      </ul>
+    </div>
+    <h4>Parameters</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Position</th><th>Name</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>script_hash</code></td><td>hex-64</td><td>Required</td></tr>
+        <tr><td>1</td><td><code>limit</code></td><td>number</td><td>Optional; default 100; clamped 1..=1000</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>script_hash</code></td><td>hex-64</td><td>Echoed</td></tr>
+        <tr><td><code>total</code>, <code>returned</code></td><td>number</td><td></td></tr>
+        <tr><td><code>truncated</code></td><td>boolean</td><td><code>true</code> when more outputs exist than were returned</td></tr>
+        <tr><td><code>utxos[]</code></td><td>array</td><td>Each <code>{txid, vout, value_sat (string), script_hash}</code></td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getutxos","params":["7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000", 100]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "script_hash": "7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000",
+    "total": 3,
+    "returned": 3,
+    "truncated": false,
+    "utxos": [
+      { "txid": "f31a7c059e64b2d80a5c3e71b94d6f28c07e1a538b2f4d96e05a7c31d48f6b20",
+        "vout": 0, "value_sat": "100000000000",
+        "script_hash": "7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000" },
+      { "txid": "28c07e1a538b2f4d96e05a7c31d48f6b20f31a7c059e64b2d80a5c3e71b94d6f",
+        "vout": 1, "value_sat": "20000000000",
+        "script_hash": "7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000" },
+      { "txid": "6f28c07e1a538b2f4d96e05a7c31d48f6b20f31a7c059e64b2d80a5c3e71b94d",
+        "vout": 0, "value_sat": "5000000000",
+        "script_hash": "7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000" }
+    ]
+  }
+}</code></pre>
+  </div>
+
+  <!-- gettxout -->
+  <div class="method" id="gettxout">
+    <h3>gettxout <span class="badge live">live</span></h3>
+    <p class="sig">gettxout [txid hex-64, vout?] &rarr; object</p>
+    <p>Exact spent/unspent status for one specific outpoint. This is the precision instrument of the whole read surface: it works regardless of how many outputs an address holds.</p>
+    <div class="callout warn">
+      <span class="title"><code>at_slot</code> is the answering node's head — not the output's age</span>
+      <p><code>at_slot</code> is the node's <em>current head slot at the moment it answered</em>, NOT the slot the output was created in. No RPC exposes an output's creation height. If you need "this output existed at or before height H", read <code>getblockcount</code> in the same round-trip — see the <a href="#crediting">crediting rule</a>.</p>
+    </div>
+    <h4>Parameters</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Position</th><th>Name</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>txid</code></td><td>hex-64</td><td>Client-computed consensus txid</td></tr>
+        <tr><td>1</td><td><code>vout</code></td><td>number</td><td>Optional</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>txid</code>, <code>vout</code></td><td>hex-64 / number</td><td>Echoed</td></tr>
+        <tr><td><code>unspent</code></td><td>boolean</td><td></td></tr>
+        <tr><td><code>utxo</code></td><td>object | null</td><td><code>{txid, vout, value_sat (string), script_hash}</code> when unspent</td></tr>
+        <tr><td><code>at_slot</code></td><td>number</td><td>Answering node's current head slot — see callout above</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"gettxout","params":["f31a7c059e64b2d80a5c3e71b94d6f28c07e1a538b2f4d96e05a7c31d48f6b20", 0]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "txid": "f31a7c059e64b2d80a5c3e71b94d6f28c07e1a538b2f4d96e05a7c31d48f6b20",
+    "vout": 0,
+    "unspent": true,
+    "utxo": {
+      "txid": "f31a7c059e64b2d80a5c3e71b94d6f28c07e1a538b2f4d96e05a7c31d48f6b20",
+      "vout": 0,
+      "value_sat": "100000000000",
+      "script_hash": "7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000"
+    },
+    "at_slot": 71182
+  }
+}</code></pre>
+  </div>
+
+  <!-- getmempoolinfo -->
+  <div class="method" id="getmempoolinfo">
+    <h3>getmempoolinfo <span class="badge live">live</span></h3>
+    <p class="sig">getmempoolinfo [] &rarr; object</p>
+    <p>Mempool occupancy and fee look-ahead. Read <code>next_base_fee_millisat_per_gas</code> here or from <code>getchaininfo</code> immediately before building a transaction.</p>
+    <h4>Parameters</h4>
+    <p>None — pass <code>[]</code>.</p>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>size</code>, <code>max</code></td><td>number</td><td><code>max</code> is 4096</td></tr>
+        <tr><td><code>bytes</code></td><td>number</td><td>Total serialized bytes queued</td></tr>
+        <tr><td><code>next_base_fee_millisat_per_gas</code></td><td><strong>string</strong></td><td>One-block look-ahead base fee</td></tr>
+        <tr><td><code>barred</code>, <code>barred_hits</code></td><td>number</td><td>Currently barred sources / hits against bars</td></tr>
+        <tr><td><code>expired</code>, <code>evicted_low_fee</code></td><td>number</td><td>Lifetime drop counters (TTL expiry / fee eviction)</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"getmempoolinfo","params":[]}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "size": 2,
+    "max": 4096,
+    "bytes": 9178,
+    "next_base_fee_millisat_per_gas": "1024",
+    "barred": 0,
+    "barred_hits": 0,
+    "expired": 1,
+    "evicted_low_fee": 0
+  }
+}</code></pre>
+  </div>
+
+  <!-- sendrawtransaction -->
+  <div class="method" id="sendrawtransaction">
+    <h3>sendrawtransaction <span class="badge live">live</span></h3>
+    <p class="sig">sendrawtransaction [hex] &rarr; object</p>
+    <p>Submit signed transaction bytes. The response is a <strong>queue acknowledgement, not inclusion</strong> — the transaction has been admitted to the mempool, nothing more. Track inclusion yourself, by the txid you computed client-side <em>before</em> broadcast (see <a href="#transactions">Transactions &amp; fees</a>).</p>
+    <div class="callout warn">
+      <span class="title">There is no <code>txid</code> field in the response — deliberately</span>
+      <p>The <code>tx_hash</code> field is a node-local digest over the raw bytes, <strong>not</strong> the consensus txid. The consensus txid is <code>SHA3-256("BLCH4:TXID" ‖ spend_signing_root)</code>, computable client-side before you broadcast. Everything downstream (outpoints, <code>gettxout</code>, reconciliation) keys on the txid you computed — never on <code>tx_hash</code>.</p>
+    </div>
+    <h4>Parameters</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Position</th><th>Name</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>hex</code></td><td>string</td><td>Serialized signed transaction, hex-encoded</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Response fields</h4>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>accepted</code></td><td>boolean</td><td><code>true</code> on admission</td></tr>
+        <tr><td><code>status</code>, <code>kind</code></td><td>string</td><td>Queue status; transaction kind</td></tr>
+        <tr><td><code>bytes</code></td><td>number</td><td>Size as admitted</td></tr>
+        <tr><td><code>tx_hash</code></td><td>hex-64</td><td>Node-local digest over raw bytes — <strong>not the consensus txid</strong></td></tr>
+        <tr><td><code>tx_hash_note</code></td><td>string</td><td>The node says the above itself</td></tr>
+        <tr><td><code>confirmation</code></td><td>string</td><td>States that this is queue acknowledgement, not inclusion</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Example</h4>
+<pre><code>curl -s -X POST https://posternlabs.com/g4rpc -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"sendrawtransaction","params":{"hex":"06a1b2c3…"}}'</code></pre>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "accepted": true,
+    "status": "accepted",
+    "kind": "transfer_v2",
+    "bytes": 4890,
+    "tx_hash": "b94d6f28c07e1a538b2f4d96e05a7c31d48f6b20f31a7c059e64b2d80a5c3e71",
+    "tx_hash_note": "node-local digest over raw bytes; not the consensus txid — compute the txid client-side",
+    "confirmation": "queue acknowledgement only; not evidence of inclusion"
+  }
+}</code></pre>
+    <p class="kv">Resubmitting byte-identical bytes while the transaction is pending returns <code>Admitted::Duplicate</code> — a success, not an error. See <a href="#errors">error codes</a> for the retry discipline on refusals.</p>
+  </div>
+
+  <!-- refused methods -->
+  <div class="method" id="refused">
+    <h3>Methods that are routed but refuse — by design</h3>
+    <p class="sig">gettransaction [txid] &rarr; error -32005 &nbsp;·&nbsp; getnewaddress [] &rarr; error -32006</p>
+    <ul>
+      <li><strong><code>gettransaction</code></strong> <span class="badge refused">refuses</span> — permanently answers <code>-32005 NO_TRANSACTION_INDEX</code>. This chain has <strong>no txid&rarr;block index, by design</strong>. There is no server-side transaction lookup to wait for; build your tracking on client-computed txids + <code>gettxout</code>/<code>getutxos</code> correlation. See <a href="#transactions">Transactions &amp; fees</a>.</li>
+      <li><strong><code>getnewaddress</code></strong> <span class="badge refused">refuses</span> — answers <code>-32006 NO_WALLET</code>. The node holds no wallet and no keys; address generation is a client-side operation (<a href="#addresses">Addresses &amp; keys</a>).</li>
+    </ul>
+<pre><code>{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": { "code": -32005, "message": "no transaction index on this chain (by design)" }
+}</code></pre>
+  </div>
+</section>
+
+<!-- ============================ NEXT RELEASE ============================ -->
+<section id="next-release">
+  <h2 id="next-release-h">Next-release methods</h2>
+  <div class="callout">
+    <span class="title">Status</span>
+    <p>The three methods below are <strong>in source at commit <code>72e5525</code></strong> and arrive with the next fleet release. <strong>Today both the public proxy and the direct nodes refuse them.</strong> Documented here so you can build against the shapes; do not ship code that assumes they answer yet.</p>
+  </div>
+
+  <div class="method" id="getvalidators">
+    <h3>getvalidators <span class="badge next">next release</span></h3>
+    <p class="sig">getvalidators [] &rarr; array</p>
+    <p>The whole validator registry in one call: for each validator, <code>index</code>, <code>pubkey_hash</code>, <code>status</code>, <code>effective_stake_sat</code> (string), and <code>commission_bps</code>. Note an inconsistency to plan for: <code>commission_bps</code> is a <em>plain number</em> on this method, while <a href="#getvalidator"><code>getvalidator</code></a> returns it as a string.</p>
+  </div>
+
+  <div class="method" id="gettxstatus">
+    <h3>gettxstatus <span class="badge next">next release</span></h3>
+    <p class="sig">gettxstatus [txid hex-64] &rarr; { status }</p>
+    <p>Returns <code>{"status": "pending" | "included" | "justified" | "finalized" | "unknown"}</code>. This is a <em>tracking convenience</em>, not a settlement signal: do <strong>not</strong> use its <code>"finalized"</code> string as the crediting trigger — the <a href="#crediting">crediting rule</a> (finalized-height cross-reference, prudence margin, two-node agreement) remains normative.</p>
+  </div>
+
+  <div class="method" id="getbuildinfo">
+    <h3>getbuildinfo <span class="badge next">next release</span></h3>
+    <p class="sig">getbuildinfo [] &rarr; object</p>
+    <p>Returns <code>build_version</code>, <code>commit</code>, <code>source_digest</code> (SHA3-256 over the source set), <code>rustc</code>, <code>target</code>, and similar build provenance. Operational use: compare <code>source_digest</code> across the nodes you trust — two nodes claiming the same version with different digests are not running the same code.</p>
+  </div>
+</section>
+
+<!-- ============================ ERRORS ============================ -->
+<section id="errors">
+  <h2 id="errors-h">Error codes</h2>
+  <h3 id="errors-standard">Standard JSON-RPC</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>-32700</code></td><td>Parse error</td></tr>
+      <tr><td><code>-32600</code></td><td>Invalid request — also returned for <strong>batch arrays</strong>, which are refused: one call per request</td></tr>
+      <tr><td><code>-32601</code></td><td>Method not found</td></tr>
+      <tr><td><code>-32602</code></td><td>Invalid params</td></tr>
+      <tr><td><code>-32603</code></td><td>Internal error</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 id="errors-dedicated">Dedicated codes</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Code</th><th>Name</th><th>Meaning &amp; handling</th></tr></thead>
+    <tbody>
+      <tr><td><code>-32000</code></td><td>BLOCK_NOT_FOUND</td><td>No such block</td></tr>
+      <tr><td><code>-32001</code></td><td>VALIDATOR_NOT_FOUND</td><td>No such validator index</td></tr>
+      <tr><td><code>-32002</code></td><td>TX_DECODE_FAILED</td><td>Bytes did not decode as a transaction</td></tr>
+      <tr><td><code>-32003</code></td><td>MEMPOOL_FULL</td><td>Capacity, <em>not a verdict</em> on your transaction — retry later</td></tr>
+      <tr><td><code>-32004</code></td><td>NODE_UNAVAILABLE</td><td>Consensus thread busy — retry</td></tr>
+      <tr><td><code>-32005</code></td><td>NO_TRANSACTION_INDEX</td><td><strong>Permanent.</strong> This chain has no txid&rarr;block index by design</td></tr>
+      <tr><td><code>-32006</code></td><td>NO_WALLET</td><td><strong>Permanent.</strong> The node holds no wallet</td></tr>
+      <tr><td><code>-32007</code></td><td>SLOT_EMPTY</td><td>Normal under PoS — no canonical block at that slot; advance</td></tr>
+      <tr><td><code>-32008</code></td><td>TX_REFUSED</td><td><strong>Terminal.</strong> Never resubmit those bytes; rebuild the transaction</td></tr>
+      <tr><td><code>-32009</code></td><td>TX_REFUSED_RETRYABLE</td><td>State-dependent bar that lapses; <code>error.data = {retryable: true, until_slot: N}</code> — bar duration ≈ 64 min (<code>REJECTION_TTL_SLOTS = 128</code>)</td></tr>
+      <tr><td><code>-32010</code></td><td>see callout</td><td>Meaning depends on which layer answered — read the callout below</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout danger">
+    <span class="title"><code>-32010</code> means two different things — know which layer answered</span>
+    <ul>
+      <li>At the <strong>node</strong>: <code>TX_REFUSED_SOURCE_CAP</code> — this spend-authority source already has 64 transactions pending (<code>MEMPOOL_MAX_PER_SOURCE = 64</code>). Wait for inclusion or expiry, then submit more.</li>
+      <li>At the <strong>public proxy</strong>: <strong>"no read quorum"</strong> — fewer than 2 upstream nodes agreed on a branch-sensitive read. Nothing to do with your transaction; retry, or corroborate against the direct nodes.</li>
+    </ul>
+    <p>If you call the public proxy, assume the proxy meaning for reads and the node meaning for <code>sendrawtransaction</code> — and log the raw error body either way.</p>
+  </div>
+
+  <h3 id="errors-retry">Retry discipline</h3>
+  <ul>
+    <li><code>-32008</code>: <strong>rebuild, never resubmit.</strong> The bytes are terminally refused.</li>
+    <li><code>-32009</code>: retry after <code>until_slot</code>, or rebuild against the current base fee — usually faster.</li>
+    <li><code>-32003</code> / <code>-32004</code>: capacity/availability — back off and retry the same bytes.</li>
+    <li>Identical duplicate bytes while pending: <code>Admitted::Duplicate</code> — a success response, not an error. Safe to use as an idempotent redelivery strategy.</li>
+  </ul>
+</section>
+
+<!-- ============================ TRANSACTIONS ============================ -->
+<section id="transactions">
+  <h2 id="transactions-h">Transactions &amp; fees</h2>
+
+  <h3 id="txid">The txid: computed by you, before broadcast</h3>
+  <p class="sig">txid = SHA3-256( "BLCH4:TXID" ‖ spend_signing_root )</p>
+  <p>The consensus transaction id is deterministic and <strong>non-malleable</strong> — it excludes witnesses, so no third party can mutate it in flight. Because it is a pure function of the spend signing root, you compute it <strong>client-side, before broadcast</strong>. Outpoints are <code>(txid, vout)</code>. This txid is how you track everything on this chain: the node will never look a transaction up for you (<a href="#refused">no transaction index, by design</a>), but <code>gettxout(txid, vout)</code> answers exactly for any outpoint you know.</p>
+
+  <h3 id="fees">Fees: exactly one valid base fee</h3>
+  <ul>
+    <li>A transaction commits to <strong>exactly one valid base fee — the one committed by the block that includes it</strong>. There is no fee range, no tolerance.</li>
+    <li>Read <code>next_base_fee_millisat_per_gas</code> (from <code>getchaininfo</code> or <code>getmempoolinfo</code>) <em>immediately before building</em> — it is a one-block look-ahead.</li>
+    <li>If the base fee moves before your transaction is included, the signed bytes fail <code>ValueNotConserved</code>. <strong>Rebuild against the new fee; do not resubmit.</strong></li>
+    <li>Conservation is an <em>equality</em>: <code>spent == created + fee</code> — not a tolerance.</li>
+  </ul>
+
+  <h3 id="transferv2">TransferV2 (wire tag <code>0x06</code>)</h3>
+  <p>Live since epoch 800. Witness-table format: ~40 bytes per input instead of full per-input keys as in V1. The practical input ceiling rises from ~61 inputs (V1) to <strong>~1,000</strong> — which is also the UTXO enumeration bound (<a href="#getutxos">getutxos limit clamp</a>), so the two constraints align. V1 remains valid; a single-input payment may reasonably choose V1.</p>
+
+  <h3 id="tx-mechanics">Mempool &amp; block mechanics</h3>
+  <ul>
+    <li>Transactions in a block are packed by <code>tip_millisat_per_gas</code> descending.</li>
+    <li>Per-source pending cap: <strong>64</strong> transactions per spend-authority source (<code>-32010</code> at the node when exceeded).</li>
+    <li>Mempool TTL: <strong>100 slots</strong> unincluded &rarr; dropped. Rebuild and resubmit after expiry (the fee has almost certainly moved by then anyway).</li>
+  </ul>
+
+  <div class="callout warn">
+    <span class="title">No RPC reconstructs a settled transaction's history</span>
+    <p>There is no fee/tip history endpoint and no way to ask the chain "what did transaction X pay, and when was it included?" after the fact. Correlate client-side, keyed by the txid you computed before broadcast: record <code>(txid, inputs, outputs, fee, next_base_fee at build time)</code> in your own database at build time, then confirm outpoint existence via <code>gettxout</code>/<code>getutxos</code>. Plan fee-reconciliation tooling around this from day one — it cannot be bolted on later by querying the chain.</p>
+  </div>
+
+  <h3 id="signing-flow">Client-side signing flow</h3>
+  <ol>
+    <li><strong>Select inputs</strong> — <code>getutxos</code> for the first page; <code>gettxout</code> for exact checks.</li>
+    <li><strong>Read <code>next_base_fee_millisat_per_gas</code></strong> — immediately before building.</li>
+    <li><strong>Set tip and outputs</strong>.</li>
+    <li><strong>Fix the <code>tx_bytes</code> budget</strong> — Falcon signatures vary in length; budget the <em>declared</em> size, not the size of one sample signature.</li>
+    <li><strong>Sign</strong> — the <code>spend_signing_root</code> fixes the txid at this moment; record it.</li>
+    <li><strong>Broadcast</strong> — <code>sendrawtransaction {"hex": …}</code>; track by your recorded txid.</li>
+  </ol>
+</section>
+
+<!-- ============================ ADDRESSES ============================ -->
+<section id="addresses">
+  <h2 id="addresses-h">Addresses &amp; keys</h2>
+
+  <h3 id="address-format">Address format</h3>
+  <p class="sig">bloch1q + 48 hex = 55 characters</p>
+  <ul>
+    <li>The 48 hex characters are: <strong>40 hex</strong> = the 20-byte SHA3-256 <em>prefix</em> of the raw public key (this is <strong>not</strong> RIPEMD — there is no hash160 anywhere), followed by <strong>8 hex</strong> = a SHA3 double-checksum.</li>
+    <li>The network emits lowercase. The reference parser accepts mixed-case hex — <strong>validate leniently, emit lowercase</strong>.</li>
+  </ul>
+<pre><code># illustrative address anatomy
+bloch1q 7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4 0a9b3c7d
+prefix  20-byte SHA3-256 prefix of raw pubkey    checksum
+(7)     (40 hex)                                 (8 hex)</code></pre>
+
+  <h3 id="script-hash">script_hash — what every balance/UTXO method keys on</h3>
+  <p>The 32-byte <code>script_hash</code> has <strong>two valid forms</strong>:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Form</th><th>Construction</th><th>Derivable from an address?</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Carried</strong> (legacy-compatible)</td><td>The 20 address bytes + 12 zero bytes</td><td><strong>Yes</strong> — from the address string alone</td></tr>
+      <tr><td><strong>Native</strong></td><td>Full 32-byte hash</td><td><strong>No</strong> — requires the raw public key; not expressible as an address</td></tr>
+    </tbody>
+  </table></div>
+  <p>To derive the Carried <code>script_hash</code> from an address: strip <code>bloch1q</code>, take the first 40 hex characters, zero-pad to 64 hex.</p>
+<pre><code># address -> Carried script_hash (shell)
+addr="bloch1q7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f40a9b3c7d"
+hex="${addr#bloch1q}"                # drop the prefix
+hex="${hex:0:40}"                    # 20 address bytes (drops the 8-hex checksum)
+printf '%s%024d\n' "$hex" 0          # zero-pad to 64 hex
+# -> 7d02c4a19e5f60b3d8a1f2c47e9b0d6a35c8e1f4000000000000000000000000</code></pre>
+<pre><code>// address -> Carried script_hash (JS)
+function scriptHashFromAddress(addr) {
+  const a = addr.toLowerCase();
+  if (!/^bloch1q[0-9a-f]{48}$/.test(a)) throw new Error("not a bloch address");
+  // NOTE: a full implementation verifies the 8-hex SHA3 double-checksum here.
+  return a.slice(7, 47).padEnd(64, "0");
+}</code></pre>
+  <p class="kv">Keys are hybrid ML-DSA-65 ‖ Falcon-1024; the node never sees them — generation, storage, and signing are entirely client-side (see the <a href="#transactions">signing flow</a>).</p>
+</section>
+
+<!-- ============================ CREDITING ============================ -->
+<section id="crediting">
+  <h2 id="crediting-h">Crediting deposits — the rule</h2>
+  <p>Normative procedure for anyone crediting incoming payments: exchanges, merchants, custody providers. It exists because this chain has no transaction index and no per-output creation height — detection and settlement are built from primitives.</p>
+
+  <h3 id="crediting-detect">1. Detect</h3>
+  <ul>
+    <li>Poll <code>getbalance(script_hash)</code> cheaply per deposit address.</li>
+    <li>On change, call <code>getutxos</code> to see which outpoints arrived.</li>
+    <li>Use <code>gettxout(txid, vout)</code> to confirm a specific expected payment — the only exact check for addresses past 1,000 outputs.</li>
+  </ul>
+
+  <h3 id="crediting-height">2. Cross-reference an observed height</h3>
+  <p>When <code>gettxout</code> shows <code>unspent: true</code>, read height <code>H</code> from <code>getblockcount</code> <strong>in the same round-trip</strong>. You now know: the output existed at or before height <code>H</code>. (Remember: <code>gettxout.at_slot</code> is the node's head, not the output's age — this cross-reference is the substitute for a creation height the RPC does not expose.)</p>
+
+  <h3 id="crediting-settle">3. Credit</h3>
+  <p>Credit the deposit when <em>all</em> of the following hold:</p>
+  <ol>
+    <li><code>finalized_height ≥ H</code>, <strong>plus</strong></li>
+    <li>a prudence margin of <strong>~30 epochs (~8 h)</strong> of continued, <em>uninterrupted</em> finality advance beyond that, <strong>and</strong></li>
+    <li><strong>two independently operated nodes</strong> agree on the same finalized root at the same epoch.</li>
+  </ol>
+  <p>Reverify immediately before releasing funds.</p>
+  <div class="callout warn">
+    <span class="title">Why the margin is deliberately wide</span>
+    <p>Finality on this young network is <strong>not yet backed by live slashing economics</strong>. The ~30-epoch margin and the two-node agreement requirement are deliberate compensations. Choosing a lower margin is a legitimate business decision — but document it as an accepted risk, not as "finality means final".</p>
+  </div>
+
+  <h3 id="crediting-reorg">Reorg handling</h3>
+  <p>Above the finalized checkpoint, reorgs <em>to any depth</em> are normal LMD-GHOST behavior for included-but-unfinalized transactions. An included transaction is not settled; only the rule above settles.</p>
+</section>
+
+<!-- ============================ RUN A NODE ============================ -->
+<section id="run-a-node">
+  <h2 id="run-a-node-h">Run a node</h2>
+  <p>The source is public: <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">github.com/tiagobeltraoacioli-sketch/bloch-sis-pow</a>. Running your own observer node is the recommended posture for any serious integrator: it validates every block independently, serves the full RPC surface, and signs nothing (no <code>validator.key</code>).</p>
+
+  <div class="callout danger">
+    <span class="title">Current limitation — read before provisioning</span>
+    <p>A <strong>brand-new node cannot join mainnet right now.</strong> The 2016-epoch weak-subjectivity trust window closed on <strong>2026-09-05 07:07:19 UTC</strong> and no signed checkpoint has been published yet. A fresh sync will refuse to complete with <code>ERR_WS_REQUIRE_CHECKPOINT</code> — by design, to reject forged histories rather than accept them silently.</p>
+    <p>Nodes seeded from an existing data directory (<code>blocks.log</code>, <code>meta.bin</code>, <code>ws_latest.bin</code>) are unaffected. When the signed checkpoint ships (via <code>--ws-checkpoint</code> + <code>--ws-signer-set</code>), this section will be updated. This is the #1 fact for node operators today; everything below works once you have either a checkpoint or a seeded data directory.</p>
+  </div>
+
+  <h3 id="node-reqs">Requirements</h3>
+  <ul>
+    <li>Linux x86-64; 2+ vCPU, 8 GB RAM, 80 GB SSD.</li>
+    <li>Full replay from genesis measured ≈ <strong>21–22 min</strong> (~34k blocks, peak RSS ~934 MB). Replay cost is O(chain length) — there is no snapshot layer yet, so expect this to grow with the chain.</li>
+  </ul>
+
+  <h3 id="node-build">Build</h3>
+<pre><code>git clone https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow
+cd bloch-sis-pow
+
+# genesis artifacts: verify the carryover checksum BEFORE unpacking
+shasum -a 256 -c carryover.tsv.gz.sha256
+gunzip -k carryover.tsv.gz          # -> carryover.tsv (~55 MB, 452,726 opening outputs)
+
+# build FROM THE CRATE DIRECTORY — rust-toolchain.toml lives inside it;
+# the workspace root resolves a different pinned toolchain
+cd crates/bloch-pos-node
+cargo build --locked --release
+# binary: target/release/bloch-pos</code></pre>
+  <ul>
+    <li><code>genesis/mainnet.manifest</code> ships in the repo; <code>carryover.tsv.gz</code> + its <code>.sha256</code> sit at the repository root and must be verified and decompressed as above — the node wants the plain <code>.tsv</code>.</li>
+    <li>The node <strong>refuses to start on a carryover/manifest mismatch</strong> (four manifest-committed fields are checked), so a corrupted or wrong-version <code>.tsv</code> fails loudly, not silently.</li>
+  </ul>
+
+  <h3 id="node-run">Run (observer posture)</h3>
+<pre><code># stage the genesis artifacts wherever you keep node data
+mkdir -p /var/lib/bloch
+cp genesis/mainnet.manifest carryover.tsv /var/lib/bloch/
+
+./target/release/bloch-pos run \
+  --data-dir /var/lib/bloch/data \
+  --genesis /var/lib/bloch/mainnet.manifest \
+  --carryover /var/lib/bloch/carryover.tsv \
+  --transport devnet \
+  --listen 19100 --listen-addr 127.0.0.1 \
+  --peers 139.180.166.5:19100,139.180.173.231:19100 \
+  --rpc-port 16310 --rpc-bind 127.0.0.1</code></pre>
+  <ul>
+    <li>Bootnodes (devnet transport — plain host:port, <strong>not</strong> libp2p multiaddrs): <code>139.180.166.5:19100</code>, <code>139.180.173.231:19100</code>.</li>
+    <li>RPC defaults to <code>127.0.0.1:16310</code>. <strong>Never widen <code>--rpc-bind</code></strong> — front the node with your own authenticated proxy instead. On newer builds, the env var <code>BLOCH_RPC_HOST_ALLOWLIST</code> widens the HTTP <code>Host</code> allowlist when your proxy needs it.</li>
+    <li>Observer nodes carry no <code>validator.key</code> and can be restarted freely.</li>
+  </ul>
+
+  <h3 id="node-observability">Observability <span class="badge next">next release</span></h3>
+  <p><code>/health</code> and <code>/metrics</code> (Prometheus, <code>bloch_pos_*</code> series — <code>behind_by_slots</code>, <code>finalized_epoch</code>, <code>peer_count</code>, <code>equivocations_observed_total</code>, …) exist on next-release builds, behind <code>--metrics-port</code>, off by default. On today's fleet binary, monitor via the RPC surface (<code>getchaininfo.behind_by_slots</code> and <code>transport.peers</code>).</p>
+</section>
+
+<!-- ============================ SDKS ============================ -->
+<section id="sdks">
+  <h2 id="sdks-h">SDKs &amp; tooling</h2>
+  <div class="callout warn">
+    <span class="title">Official SDKs for Genesis-4 do not exist yet</span>
+    <p>The repository's <code>sdk/typescript</code>, <code>sdk/python</code> and <code>sdk/go</code> directories are <strong>legacy Genesis-3-era client scaffolds</strong> — machine-generated from an OpenAPI spec of the retired proof-of-work chain, explicitly labeled scaffold / pre-production / unaudited. Their method surface, constants, and disclosures describe the closed Genesis-3 chain and <strong>must not be pointed at Genesis-4</strong>. Treat them as historical reference material only.</p>
+  </div>
+  <p>The practical integration path today:</p>
+  <ul>
+    <li><strong>Direct JSON-RPC.</strong> This portal's <a href="#rpc">method reference</a> is the contract — the surface is small enough that a thin typed client in your own codebase is an afternoon's work.</li>
+    <li><strong>The wallet PWA as reference implementation.</strong> <a href="https://posternlabs.com/apps/wallet/" rel="noopener">posternlabs.com/apps/wallet/</a> signs entirely client-side; study it for the transaction-building and signing flow.</li>
+    <li><strong>Contributing a Genesis-4 typed client</strong> is the natural community contribution: the frozen method registry in the node source (<code>src/rpc/method_registry.rs</code>, with <code>tests/rpc_method_registry.rs</code> pinning it) is the surface to generate from.</li>
+  </ul>
+  <p>Other tooling: the explorer at <a href="https://blochl1.com" rel="noopener">blochl1.com</a> (blocks, validators, epochs, analytics, transactions).</p>
+  <p>Integration reference documents for exchanges and partners exist and are provided on request via Postern Labs — they are not published here.</p>
+</section>
+
+<!-- ============================ EVM ============================ -->
+<section id="evm">
+  <h2 id="evm-h">EVM roadmap &amp; status</h2>
+  <div class="callout danger">
+    <span class="title">There is no EVM on Genesis-4 today</span>
+    <p><strong>No EVM-compatible execution layer is operating on Genesis-4.</strong> There is no EVM node software to download, and offering one here would be a lie.</p>
+  </div>
+  <p>What is true, precisely:</p>
+  <ul>
+    <li>The Genesis-4 L1 is an <strong>eUTXO chain</strong>. Smart-contract execution is roadmap, not product.</li>
+    <li>Chain id <strong>8400 (<code>0x20d0</code>) is reserved</strong>, but it refers to a legacy Genesis-3-era L2 scaffold that is <strong>retired, not extended</strong>. Please do not deploy against chain id 8400 expecting a current network — nothing is listening on the other end that you should build on.</li>
+    <li>The successor plan — EVM at L1 — is an explicit <strong>draft with no code on either track yet</strong>.</li>
+  </ul>
+  <p>If you need EVM execution for your use case, the honest advice is: not here, not yet. Watch this page and the <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">repository</a> for the flag-day announcement when an execution layer ships; this section will change from a warning into documentation on that day.</p>
+</section>
+
+<!-- ============================ SECURITY ============================ -->
+<section id="security">
+  <h2 id="security-h">Security &amp; disclosure</h2>
+  <h3 id="disclosure">Coordinated disclosure</h3>
+  <ul>
+    <li>Report via the <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">repository's</a> security advisory flow, or encrypted contact, with the subject tag <code>[bloch-security]</code>.</li>
+    <li>Acknowledgement target: ≤ 2 days.</li>
+    <li>In scope: Genesis-4 consensus, P2P/RPC surfaces, hybrid signature verification, privacy findings.</li>
+  </ul>
+  <h3 id="audit-status">Audit status — stated plainly</h3>
+  <p>No external third-party audit of the post-quantum stack has been contracted to date. Internal tool-assisted audits are continuous. If your risk model requires an external audit, that requirement is not yet met — factor it in.</p>
+  <h3 id="decentralization">Decentralization — stated plainly</h3>
+  <p>The chain is young and run by a small operator set today; the validator-opening program is staged. Do not build assumptions of a large independent validator set into your threat model yet — the <a href="#crediting">crediting rule's</a> margins exist precisely because of this.</p>
+</section>
+
+</main>
+</div>
+
+<footer class="site-footer">
+  <div class="links">
+    <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">bloch-sis-pow source</a>
+    <a href="https://blochl1.com" rel="noopener">blochl1.com explorer</a>
+    <a href="https://posternlabs.com" rel="noopener">posternlabs.com</a>
+    <a href="https://posternlabs.com/apps/wallet/" rel="noopener">wallet</a>
+  </div>
+  <p>© Postern Labs · Built for people who read the source.</p>
+  <p class="verify">last verified against source commit 72e5525 · 2026-09-07</p>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

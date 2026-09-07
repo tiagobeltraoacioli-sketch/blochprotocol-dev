@@ -1,0 +1,12 @@
+# Pretty paths -> stable anchors on the single-page portal
+/rpc /#rpc 301
+/methods /#rpc 301
+/errors /#errors 301
+/transactions /#transactions 301
+/addresses /#addresses 301
+/crediting /#crediting 301
+/node /#run-a-node 301
+/run-a-node /#run-a-node 301
+/sdks /#sdks 301
+/evm /#evm 301
+/security /#security 301
