@@ -10,3 +10,6 @@
 /sdks /#sdks 301
 /evm /#evm 301
 /security /#security 301
+
+# Validator admission page (its own static page, not an anchor)
+/validator /validators 301

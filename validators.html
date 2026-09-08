@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Become a validator — Bloch Genesis-4</title>
+<meta name="description" content="Funded validator admission on Bloch Genesis-4: what is implemented, what gates remain before anyone can join, what you can prepare today, and the exact step-by-step for activation day.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/styles.css">
+<script>
+/* apply persisted theme before first paint */
+try {
+  var t = localStorage.getItem("bloch-theme");
+  if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+} catch (e) {}
+</script>
+</head>
+<body>
+
+<header class="site-header">
+  <button id="nav-toggle" class="icon-btn" aria-label="Toggle navigation">Menu</button>
+  <a class="brand" href="/">
+    <span class="mark">[B]</span> Bloch <span class="sub">Genesis-4 · developer portal</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links" aria-label="External links">
+    <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">Source</a>
+    <a href="https://blochl1.com" rel="noopener">Explorer</a>
+    <a href="https://posternlabs.com" rel="noopener">Postern Labs</a>
+  </nav>
+  <button id="theme-toggle" class="icon-btn" type="button">Theme</button>
+</header>
+
+<div class="nav-overlay" aria-hidden="true"></div>
+
+<div class="layout">
+<nav class="sidenav" aria-label="Section navigation">
+  <h5>Become a validator</h5>
+  <ul>
+    <li><a href="#status">Status &amp; gates</a></li>
+    <li><a href="#protocol">The protocol</a></li>
+    <li><a href="#wire">Wire format (0x0B)</a></li>
+    <li><a href="#prepare">Prepare now</a></li>
+    <li><a href="#steps">Step-by-step at activation</a></li>
+    <li><a href="#operating-notes">Operating notes</a></li>
+  </ul>
+  <h5>Getting started</h5>
+  <ul>
+    <li><a href="/#overview">Overview</a></li>
+    <li><a href="/#network">Network parameters</a></li>
+    <li><a href="/#integer-rule">The integer rule</a></li>
+    <li><a href="/#endpoints">Endpoints &amp; transport</a></li>
+  </ul>
+  <h5>JSON-RPC reference</h5>
+  <ul>
+    <li><a href="/#rpc">Conventions</a></li>
+    <li><a href="/#refused">Refused methods</a></li>
+    <li><a href="/#next-release">Next release</a></li>
+    <li><a href="/#errors">Error codes</a></li>
+  </ul>
+  <h5>Integrating</h5>
+  <ul>
+    <li><a href="/#transactions">Transactions &amp; fees</a></li>
+    <li><a href="/#addresses">Addresses &amp; keys</a></li>
+    <li><a href="/#crediting">Crediting deposits</a></li>
+  </ul>
+  <h5>Operating</h5>
+  <ul>
+    <li><a href="/#run-a-node">Run a node</a></li>
+    <li><a href="/#sdks">SDKs &amp; tooling</a></li>
+  </ul>
+  <h5>Project status</h5>
+  <ul>
+    <li><a href="/#evm">EVM status</a></li>
+    <li><a href="/#security">Security &amp; disclosure</a></li>
+  </ul>
+</nav>
+
+<main id="top">
+
+<!-- ============================ STATUS ============================ -->
+<section id="status">
+  <h1>Become a validator</h1>
+  <p class="lead">Funded validator admission — registering a new validator by bonding your own BLCH from existing UTXOs — is specified, implemented, and merged. It is <strong>not activated on mainnet</strong>. This page tells you exactly what stands between here and a joinable network, what you can genuinely prepare today, and the precise procedure for the day the gate opens.</p>
+
+  <div class="callout danger">
+    <span class="title">Implemented, not activated</span>
+    <p>The consensus flag day is unarmed: <code>FUNDED_VALIDATOR_ADMISSION_ACTIVATION_EPOCH&nbsp;=&nbsp;u64::MAX</code>. Every mainnet node refuses <code>FundedDeposit</code> transactions today, and no runtime option changes that. Merging prepared the door; it did not open it.</p>
+  </div>
+
+  <h3 id="gates">The gates, in order</h3>
+  <p>Before anyone can join as a validator, all four of these must happen. Each is a hard dependency, not a formality:</p>
+  <ol>
+    <li><strong>Weak-subjectivity checkpoint published.</strong> Since 2026-09-05 a fresh node cannot sync mainnet at all (see <a href="/#run-a-node">Run a node</a>); the signed checkpoint plus the signer-set ceremony must ship first. <em>Status: not shipped.</em></li>
+    <li><strong>Coordinated release + flag day.</strong> A finite admission epoch changes block validity; it must be agreed, published, and every validating node rebuilt onto the same release before that epoch arrives. No runtime option enables it. <em>Status: no epoch agreed or published.</em></li>
+    <li><strong>Exit/withdrawal lifecycle.</strong> The spec states plainly that this work does <strong>not</strong> activate authenticated exits, withdrawals, slashing evidence, or RANDAO recommit — those have their own unarmed gates. In the spec's words:
+      <blockquote>Admission must not be opened for public funds until the operator-approved lifecycle and those existing release dependencies are resolved. Otherwise bonds have no activated withdrawal path.</blockquote>
+      <em>Status: exit/withdrawal path not activated.</em></li>
+    <li><strong>Public P2P entry.</strong> Today's mesh is a firewalled devnet transport with no public bootstrap; opening requires the production transport rollout. <em>Status: not rolled out.</em></li>
+  </ol>
+  <p>What you <strong>can</strong> do today is everything below under <a href="#prepare">Prepare now</a> — key ceremony, hardware, a following node, and a rehearsed draft.</p>
+</section>
+
+<!-- ============================ PROTOCOL ============================ -->
+<section id="protocol">
+  <h2 id="protocol-h">The protocol</h2>
+  <p>Everything in this section is consensus fact from the merged implementation — the spec is <code>docs/specs/BLOCH-FUNDED-VALIDATOR-ADMISSION.md</code> in the <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">public repository</a>.</p>
+
+  <h3 id="funded-deposit">FundedDeposit — wire tag <code>0x0B</code></h3>
+  <ul>
+    <li>Consumes <strong>1–128 existing, strictly-ordered, distinct UTXOs</strong> owned by one funding key; creates the validator record, an activation-queue entry, and one change UTXO.</li>
+    <li>Input values come from <strong>committed state</strong> — no RPC parameter or genesis-offset allowance can manufacture a bond.</li>
+    <li>The legacy <code>Deposit</code> (<code>0x02</code>) and <code>Delegate</code> (<code>0x04</code>) tags remain refused.</li>
+  </ul>
+
+  <h3 id="dual-auth">Two role-separated PQ authorizations</h3>
+  <p>One unsigned intent, two signatures over it, from two roles that may live on different machines and different keys:</p>
+  <ul>
+    <li><strong>FUNDING</strong> — the owner of the coins authorizes: the UTXOs, the stake, the validator identity, the withdrawal route, the change/refund script, and the fee budget.</li>
+    <li><strong>POSSESSION</strong> — the operator proves control of the validator key and accepts the terms, including the RANDAO commitment and the commission.</li>
+  </ul>
+  <p>Both signatures use the suite-1 envelope <code>b1 0c 01 00</code> = ML-DSA-65 <strong>and</strong> Falcon-1024, each signature verifying both algorithms. Funding and validator keys may differ; there is no custodial coordinator.</p>
+  <p>The intent binds the SHA3-256 of the canonical genesis manifest plus an inclusive expiry epoch — anti-replay across networks and across time.</p>
+
+  <h3 id="bond-bounds">Bond bounds</h3>
+  <div class="table-wrap"><table>
+    <tbody>
+      <tr><td>Minimum bond</td><td><strong>25,000 BLCH</strong> (= <code>2,500,000,000,000</code> sat)</td></tr>
+      <tr><td>Per-validator maximum</td><td><code>max(25,000 BLCH, 1% of active stake)</code></td></tr>
+      <tr><td>Commission</td><td>0 – 10,000 basis points</td></tr>
+      <tr><td>Scope</td><td><strong>New-key registration only</strong> — not a top-up, not delegation</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 id="conservation">Conservation</h3>
+  <p>The transaction balances exactly, by consensus rule:</p>
+<pre><code>sum(inputs)    = B + C + Fmax + T
+change created = C + Fmax − Factual
+charged        = Factual + T</code></pre>
+  <p>where <code>B</code> is the bond, <code>C</code> the signed minimum change, <code>Fmax</code> the signed maximum base fee, <code>Factual</code> the base fee actually charged at inclusion, and <code>T</code> the tip. The refund always goes to the signed change script, never to a validator reward. Inclusion above the signed maximum base-fee rate is refused.</p>
+
+  <h3 id="queue">Activation queue</h3>
+  <ul>
+    <li>Ordered by <code>(deposit epoch, pubkey hash)</code>.</li>
+    <li>Delay of <strong>≥ 8 epochs</strong> before activation; at most <strong>4 admissions per epoch</strong>.</li>
+    <li>Registration <strong>queues</strong> — it does not grant consensus weight.</li>
+  </ul>
+
+  <h3 id="signing-roots">Signing roots</h3>
+<pre><code>intent_root      = SHA3-256("BLOCH:VALIDATOR:DEPOSIT:V1"    || fields 1–8)
+funding_root     = SHA3-256("BLOCH:VALIDATOR:FUNDING:V1"    || intent_root)
+possession_root  = SHA3-256("BLOCH:VALIDATOR:POSSESSION:V1" || intent_root)
+txid             = SHA3-256(DS_TXID || intent_root)   // existing rule; witness-independent</code></pre>
+</section>
+
+<!-- ============================ WIRE ============================ -->
+<section id="wire">
+  <h2 id="wire-h">Wire format (<code>0x0B</code>)</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Field</th><th>Encoding</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Tag</td><td><code>u8</code> = <code>0x0B</code></td></tr>
+      <tr><td>2</td><td>Network domain + expiry</td><td>32 B domain + <code>u64</code> inclusive expiry epoch</td></tr>
+      <tr><td>3</td><td>Funding pubkey</td><td><code>u32</code> length + 3,749 B</td></tr>
+      <tr><td>4</td><td>Funding inputs</td><td><code>u32</code> count + (txid 32 B, vout <code>u32</code>) per input</td></tr>
+      <tr><td>5</td><td>Validator pubkey</td><td><code>u32</code> length + 3,749 B</td></tr>
+      <tr><td>6</td><td>Stake + commitments</td><td>stake <code>u128</code> + RANDAO 32 B + withdrawal 32 B + commission <code>u128</code></td></tr>
+      <tr><td>7</td><td>Change</td><td>min change <code>u64</code> + change script 32 B</td></tr>
+      <tr><td>8</td><td>Fees</td><td>max base-fee <code>u128</code> + tip <code>u128</code> + reserved <code>u64</code></td></tr>
+      <tr><td>9</td><td>Signatures</td><td>two <code>u32</code>-length signature vectors (max 4,593 B each)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================ PREPARE ============================ -->
+<section id="prepare">
+  <h2 id="prepare-h">Prepare now</h2>
+  <p>None of the gates above stop you from doing the slow, careful work today. A candidate who has done these four things joins on activation day; one who has not, waits.</p>
+  <ol>
+    <li><strong>Hardware.</strong> Linux x86-64, 2+ vCPU, 8 GB RAM, 80 GB SSD — the same footprint as an observer node.</li>
+    <li><strong>Build from the public source.</strong> The exact clone / checksum / gunzip / build steps are in this portal's <a href="/#run-a-node">Run a node</a> section — they are identical for a validator candidate.</li>
+    <li><strong>Offline key ceremony.</strong> Generate the validator keystore <strong>offline</strong>; keep the sealed keystore, the RANDAO seed, and the withdrawal-authority backups secure and separate. The withdrawal script must name a PQ key the intended recipient <strong>actually controls</strong> — registration does not establish that control. <code>keygen --index auto</code> exists for rehearsal only (devnet-grade).</li>
+    <li><strong>Run a following node now</strong> (observer posture), so your infrastructure is proven before your money is at stake. This is blocked today only by the weak-subjectivity checkpoint gate above.</li>
+  </ol>
+</section>
+
+<!-- ============================ STEPS ============================ -->
+<section id="steps">
+  <h2 id="steps-h">The step-by-step at activation</h2>
+  <p>This is the full procedure, verbatim from the spec. Steps 1–3 and 6 can be rehearsed today; step 4 only works once a finite admission epoch is live.</p>
+
+  <h3 id="step-query">1. Query admission state</h3>
+  <p><code>getvalidatoradmission</code> — an unarmed build answers <code>active:false, activation_epoch:null</code>, plus the network domain, head epoch, stake bounds, queue limits, and next base fee. Fee and bound figures are quoted from the head; consensus rechecks them at inclusion.</p>
+
+  <h3 id="step-inputs">2. Gather inputs and public material</h3>
+  <p><a href="/#getutxos"><code>listunspent</code></a> for the funding authority; export the two suite-enveloped public keys as hex files, plus the RANDAO commitment from the offline ceremony. No private material enters the draft.</p>
+
+  <h3 id="step-sign">3. Prepare, inspect, and sign — each role on its own machine</h3>
+<pre><code>bloch-pos validator-deposit prepare \
+  --genesis genesis.bin \
+  --funding-pubkey funding.pub.hex --validator-pubkey validator.pub.hex \
+  --randao &lt;commitment-hex32&gt; --withdrawal &lt;withdrawal-script-hex32&gt; \
+  --change &lt;change-script-hex32&gt; --stake 2500000000000 \
+  --input &lt;txid-hex32&gt;:&lt;vout&gt;:&lt;value-sat&gt; \
+  --max-base-fee &lt;millisat-per-gas&gt; --tip &lt;millisat-per-gas&gt; \
+  --expiry &lt;inclusive-epoch&gt; --commission &lt;basis-points&gt; --out draft.hex
+
+bloch-pos validator-deposit inspect --tx draft.hex
+bloch-pos validator-deposit sign --tx draft.hex --role funding \
+  --dir funding-keystore --out funded.hex
+bloch-pos validator-deposit inspect --tx funded.hex
+bloch-pos validator-deposit sign --tx funded.hex --role validator \
+  --dir validator-keystore --out ready.hex</code></pre>
+  <ul>
+    <li>The passphrase comes from the sealed-keystore sourcing, never a command-line argument.</li>
+    <li><strong>Inspect on each signing machine</strong> — network domain, inputs, validator hash, withdrawal script, commission, fee budget. Rebuilding any field invalidates both signatures.</li>
+    <li><code>--stake 2500000000000</code> is 25,000 BLCH expressed in sat — the minimum bond.</li>
+  </ul>
+
+  <h3 id="step-submit">4. After activation: broadcast</h3>
+  <p>Submit <code>ready.hex</code> via <a href="/#sendrawtransaction"><code>sendrawtransaction</code></a>. The offline CLI never broadcasts anything itself.</p>
+
+  <h3 id="step-track">5. Track</h3>
+  <ul>
+    <li><code>getvalidatorbykey &lt;sha3-256 pubkey hash&gt;</code> — <code>VALIDATOR_NOT_FOUND</code> before inclusion is the ordinary pending state, not an error in your submission.</li>
+    <li><code>gettxstatus</code> to distinguish included / justified / finalized.</li>
+  </ul>
+
+  <h3 id="step-run">6. Run the candidate node</h3>
+  <p>Run with the auto-index keystore (the <code>4294967295</code> sentinel) and the correct genesis manifest. The node follows and verifies while queued and needs <strong>no restart</strong> when it becomes eligible; duties resolve the key from the committed registry, so there is no index race.</p>
+</section>
+
+<!-- ============================ OPERATING ============================ -->
+<section id="operating-notes">
+  <h2 id="operating-notes-h">Operating notes</h2>
+  <ul>
+    <li><strong>Never run one key twice.</strong> Doppelganger observation and the persistent slashing journal are on the signing path, bound to pubkey-hash + genesis digest (index-independent). The network permanently discards the fork-choice weight of an equivocating key — measured on this chain's own history, not a hypothetical.</li>
+    <li><strong>Rewards and commission</strong> follow the existing emission schedule; queue and stake figures are live-queryable, not promises.</li>
+    <li><strong>Rehearsal exists in-repo:</strong> <code>scripts/rehearse-validator-admission.py</code> copies the source, arms epoch 0 in the copy, runs the production paths end-to-end, and deletes the copy.</li>
+  </ul>
+  <div class="callout warn">
+    <span class="title">Honesty notes</span>
+    <p>The implementation, in the spec's own words, "has not received an independent cryptographic or consensus audit". Slashing evidence and exits have unarmed gates of their own — see <a href="#gates">the gates</a> above and <a href="/#security">Security &amp; disclosure</a>.</p>
+  </div>
+</section>
+
+</main>
+</div>
+
+<footer class="site-footer">
+  <div class="links">
+    <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">bloch-sis-pow source</a>
+    <a href="https://blochl1.com" rel="noopener">blochl1.com explorer</a>
+    <a href="https://posternlabs.com" rel="noopener">posternlabs.com</a>
+    <a href="https://posternlabs.com/apps/wallet/" rel="noopener">wallet</a>
+  </div>
+  <p>© Postern Labs · Built for people who read the source.</p>
+  <p class="verify">This page tracks docs/specs/BLOCH-FUNDED-VALIDATOR-ADMISSION.md at 6e4b5323 · 2026-09-08. When a gate above opens, this page changes the same day.</p>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

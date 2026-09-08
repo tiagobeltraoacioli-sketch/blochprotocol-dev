@@ -337,3 +337,13 @@ td.wrap code { white-space: normal; word-break: break-all; }
 @media (max-width: 520px) {
   .brand .sub { display: none; }
 }
+
+blockquote {
+  margin: 8px 0 10px;
+  padding: 6px 14px;
+  border-left: 3px solid var(--warn-border);
+  background: var(--bg-alt);
+  border-radius: 0 6px 6px 0;
+  color: var(--text);
+  font-style: italic;
+}
