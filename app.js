@@ -4,7 +4,7 @@
 
   var root = document.documentElement;
 
-  /* ---------- theme toggle (persisted; prefers-color-scheme fallback) ---------- */
+  /* ---------- theme toggle (persisted; dark default) ---------- */
   function storedTheme() {
     try { return localStorage.getItem("bloch-theme"); } catch (e) { return null; }
   }
@@ -17,7 +17,7 @@
   function effectiveTheme() {
     var t = root.getAttribute("data-theme");
     if (t === "dark" || t === "light") return t;
-    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return "dark";
   }
 
   var themeBtn = document.getElementById("theme-toggle");
@@ -104,13 +104,27 @@
   /* ---------- mobile nav ---------- */
   var navToggle = document.getElementById("nav-toggle");
   var overlay = document.querySelector(".nav-overlay");
-  function closeNav() { document.body.classList.remove("nav-open"); }
+  function closeNav() {
+    document.body.classList.remove("nav-open");
+    if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+  }
   if (navToggle) {
+    navToggle.setAttribute("aria-expanded", "false");
     navToggle.addEventListener("click", function () {
       document.body.classList.toggle("nav-open");
+      navToggle.setAttribute("aria-expanded", String(document.body.classList.contains("nav-open")));
     });
   }
   if (overlay) overlay.addEventListener("click", closeNav);
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && document.body.classList.contains("nav-open")) {
+      closeNav();
+      if (navToggle) navToggle.focus();
+    }
+  });
+  window.addEventListener("resize", function () {
+    if (window.innerWidth > 980) closeNav();
+  });
   Array.prototype.forEach.call(document.querySelectorAll(".sidenav a"), function (a) {
     a.addEventListener("click", closeNav);
   });
