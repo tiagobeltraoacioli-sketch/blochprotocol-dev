@@ -74,7 +74,8 @@ try {
   </ul>
   <h5>Project status</h5>
   <ul>
-    <li><a href="#evm">EVM status</a></li>
+    <li><a href="#evm">EVM &amp; Solana DevKit</a></li>
+    <li><a href="#builders">Bloch Builders community</a></li>
     <li><a href="#security">Security &amp; disclosure</a></li>
   </ul>
 </nav>
@@ -939,18 +940,35 @@ cp genesis/mainnet.manifest carryover.tsv /var/lib/bloch/
 
 <!-- ============================ EVM ============================ -->
 <section id="evm">
-  <h2 id="evm-h">EVM roadmap &amp; status</h2>
-  <div class="callout danger">
-    <span class="title">There is no EVM on Genesis-4 today</span>
-    <p><strong>No EVM-compatible execution layer is operating on Genesis-4.</strong> There is no EVM node software to download, and offering one here would be a lie.</p>
-  </div>
-  <p>What is true, precisely:</p>
-  <ul>
-    <li>The Genesis-4 L1 is an <strong>eUTXO chain</strong>. Smart-contract execution is roadmap, not product.</li>
-    <li>Chain id <strong>8400 (<code>0x20d0</code>) is reserved</strong>, but it refers to a legacy Genesis-3-era L2 scaffold that is <strong>retired, not extended</strong>. Please do not deploy against chain id 8400 expecting a current network — nothing is listening on the other end that you should build on.</li>
-    <li>The successor plan — EVM at L1 — is an explicit <strong>draft with no code on either track yet</strong>.</li>
-  </ul>
-  <p>If you need EVM execution for your use case, the honest advice is: not here, not yet. Watch this page and the <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow" rel="noopener">repository</a> for the flag-day announcement when an execution layer ships; this section will change from a warning into documentation on that day.</p>
+  <h2 id="evm-h">Build with EVM. Build with Solana.</h2>
+  <p>Bloch DevKit gives developers local runtimes, starter projects and a common export interface for future Bloch integration. Start with familiar tools and contribute to the network adapters.</p>
+  <div class="callout"><span class="title">Local development · v0.1.0</span><p>Anvil runs the EVM profile. Agave runs Solana SBF programs. These local environments do not settle on Bloch and do not bridge assets.</p></div>
+  <p><a href="/downloads/bloch-devkit-0.1.0.zip" download>Download Bloch DevKit 0.1.0 (ZIP)</a> · <a href="/downloads/bloch-devkit-0.1.0.zip.sha256">SHA-256</a></p>
+  <p>Requires Python 3.9+ on macOS or Linux. Install Foundry and Agave separately using the official instructions in the included README.</p>
+  <pre><code>unzip bloch-devkit-0.1.0.zip
+cd bloch-devkit-0.1.0
+python3 install.py
+export PATH="$HOME/.local/bin:$PATH"
+bloch-dev doctor</code></pre>
+  <div class="table-wrap"><table><thead><tr><th>Track</th><th>Local runtime</th><th>Start a project</th></tr></thead><tbody>
+    <tr><td>EVM / Solidity</td><td>Anvil · Cancun · chain ID 31337</td><td><code>bloch-dev init evm my-evm-app</code></td></tr>
+    <tr><td>Solana / SBF</td><td>Agave · persistent local ledger</td><td><code>bloch-dev init svm my-solana-app</code></td></tr>
+  </tbody></table></div>
+  <pre><code>bloch-dev run --project my-evm-app
+# In another terminal:
+bloch-dev export --project my-evm-app --output observation.json
+bloch-dev verify observation.json</code></pre>
+  <p>Each project includes a README and a contract/program starter. The CLI retains local state, checks runtime availability and exports block observations. Verification checks the file digest; it is not an execution proof.</p>
+  <h3>Path to Bloch</h3>
+  <p>The existing <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-l2-evm">Bloch L2 EVM engine</a> contains signed execution and witness verification. Its node/RPC integration remains incomplete. The DevKit's Anvil profile is a development environment, not a replacement for that engine.</p>
+  <p>Native Bloch authorization remains post-quantum; standard EVM wallet compatibility belongs to L2 under the September 8 amendment to ADR-040. SVM network execution, deterministic replay and the Genesis-4 connector remain implementation work. Read <code>INTEGRATION.md</code> in the download for the adapter boundary and acceptance sequence.</p>
+</section>
+<section id="builders">
+  <h2 id="builders-h">Bloch Builders</h2>
+  <p>Help make the first generation of Bloch applications possible. Choose a track, run an example and turn what you learn into a contribution.</p>
+  <ol><li><strong>Run your first project.</strong> Install the DevKit, deploy locally and record your runtime versions.</li><li><strong>Pick a contribution.</strong> Improve the Solidity starter, build a Solana client, test installation or work on deterministic replay.</li><li><strong>Share a reproducible result.</strong> Include the expected behavior, exact commands and test output in an issue or pull request. Remove private keys and credentials.</li></ol>
+  <p><a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow/issues">Contribute through GitHub Issues ↗</a> · <a href="https://github.com/tiagobeltraoacioli-sketch/bloch-sis-pow">Explore the source ↗</a></p>
+  <p>Repository access may be required. The included <code>COMMUNITY.md</code> proposes a four-week founding developer cohort and lists first contributions. Registration and event dates are not open yet.</p>
 </section>
 
 <!-- ============================ SECURITY ============================ -->
